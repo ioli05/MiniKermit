@@ -1,0 +1,87 @@
+Nicuta Loredana Ionela 325CD Tema1 - MiniKermit
+
+	Pentru a rezolva aceasta tema, am utilizat in primul rand o noua structura
+pentru implamentare Kermit-ului, ce contine toate cele 7 campuri necesare, respectiv 
+o structura pentru campul data. 
+
+--ksender.c--
+
+	In acest fisier, se realizeaza pachetele ce urmeaza a fi trimise catre receptor.
+Aceste pachete au fost trimise in urmatoarea ordine:
+
+1. Send-Init 
+	In pachetul Send-Init au fost salvate caracteristicile sender-ului, aceasta fiind
+completate in campul data. Se formeaza mesajul, se calculeaza crc-ul (aici am folosit
+un mesaj auxiliar pentru a fi sigura ca crc-ul va fi calculat corect, deoarece am
+intampinat probleme atunci cand am calculat direct) si se trimite receptorului. In cazul in
+care primim NULL din partea receptorului, incheiem transmisia, respectiv, daca primim NACk,
+vom incerca sa retrimitem in total de 3 ori pachetul (NULL + NACK). Daca dupa 3 retrimiteri, 
+nu am primit un pachet de tip ACK, incheiem transmisia.
+
+2. File-Header
+	In pachetul File Header, am salvat numele fisierelor din care se va face mai apoi
+citirea datelor. In cazul in care primi TIMEOUT sau NACK, vom retrimite pachetele de 3 ori.
+Daca sender-ul nu reuseasca sa primeasca un pachet de tip ACK in acest timp, va incheia 
+transmisia. 
+
+Se deschide fisierul pentru a fi citite date.
+
+3. Data
+	In pachetul Data, se citeste din fisier intr-un buffer de lungime maxima 250, si
+se completeaza campul DATA din frame, formandu-se in final mesajul pentru a putea fi trimis.
+Se realizeaza acelasi principiu ca la File-Header, legat de TIMEOUT sau NACK.
+
+4. File-End
+	In pachetul File-end se va marca sfarsitul de fisier, deoarece toate datele au 
+fost citite si transmise cu succes catre receiver. Acest pachet este transis dupa fiecare
+fisier. Se aplica acelasi principiu ca la File-Header, legat de TIMEOUT sau NACK.
+
+5. Text-End
+	In acest pachet se specifica incheierea transmisiei dintre sender si receiver.
+Acesta se va transmite doar data toate datele au fost corecte. Se aplica acelasi principiu
+ca la File-Header, legat de TIMEOUT sau NACK.
+
+	! Numarul secventei este incrementat la fiecare pachet trimis dupa primirea unui 
+ACK sau NACK. Nu este incrementata atunci cand vom retrimite un pachet pentru TIMEOUT
+	!!Pentru toate pachetele, mai putin send-init principiul de retrimitere este urmato-
+rul:
+		1. Se verifica ce tip de pachet am primit din receiver. 
+	--Daca este de tip NULL, retrimit pachetul trimis anterior si incrementez nrTries.
+	--Daca este de tip NACK, retrimit pachetul trimit anterior, incrementez nr secventei,
+respectiv nrTries
+	--Daca este de tip ACK atunci ies din bucla si continui cu transmiterea urmatoarelor
+pachete
+	!!! NrTries = numarul de incercari pentru a retrimite un pachet.
+--kreceiver.c--
+
+1. Primul pachet primit
+	
+	Receiver-ul primeste primul pachet si verifica:
+		1. Daca este NULL atunci va mai astepta 2 * TIMEOUT secunde pentru a primi
+un mesaj. In cazul in care dupa acest timp nu a primit, incheie transmisia cu sender-ul.
+		2. Daca nu este NULL atunci verifica daca este primit corect, prin recalcularea
+CRC-ului. Daca este corect, atunci pachetul a fost primit ok si trimite sender-ului un pachet
+de tip ACK. Daca nu, va trimite un pachet de tip NACK. 
+		!!!Daca a fost primit corect atunci variabila recievesSendInit va fi setata
+pe valoarea 1, adica a fost primit primul pachet.
+
+2. Urmatoarele pachete primite
+	Receiver-ul primeste urmatoarele pachete si face aceeasi verificare. Daca crc-ul este
+gresit atunci trimite un pachet de tip NACK, iar daca este corect atunci va verifica tipul
+de pachet:
+			1. Pentru Send-Init seteaza recievedSendInit pe 1
+			2. Pentru File-Header creeaza fisierul de scriere si il afiseaza 
+pentru control.
+			3. Pentru Data va scrie in fisier, numai in cazul in care nu este
+un pachet primit anterior (se retine secventa ultimului pachet primit si se compara cu cea 
+a pachetului anterior)
+			4. Pentru File-End se inchide fisierul in care au fost scrise datele
+			5. Pentru Text-End se incheie transmisia dintre sender si receiver.
+
+	! Numarul secventei este incrementat la fiecare pachet trimis de tip ACK sau NACK. 
+Nu este incrementata atunci cand vom retrimite un pachet pentru TIMEOUT.(am primit NULL)
+	!! Se asteapta timp de 3 ori pentru NULL, in caz contrat receiver-ul incheie 
+transmisia. Am pus aceasta conditie pentru a fi sigura ca se realizeaza inchiderea receiver-ului.
+	
+	
+
